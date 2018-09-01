@@ -3,4 +3,6 @@ divide
 *.fa
 *.idx
 *.log
-
+/tmp
+.o
+.out

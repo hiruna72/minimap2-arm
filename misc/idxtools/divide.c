@@ -4,14 +4,14 @@
 #include <errno.h>
 #include <limits.h>
 #include <assert.h>
-
+#include <stdint.h>
 
 #define MAX_CHR 1024                       //maximum number of chromosomes
 #define MAX_CHR_NAME 256                   //maximum number of characters in a chromosome name
 #define OUTPUT_FILE_FORMAT "part%d.fa"     //output file format
 
 
-int NUM_PARTS=0;                      //maximum number of parts
+int32_t NUM_PARTS=0;                      //number of partitions in the index
 
 /*Die on error. Print the error and exit if the return value of the previous function NULL*/
 #define errorCheckNULL(ret) ({\
@@ -30,25 +30,25 @@ int NUM_PARTS=0;                      //maximum number of parts
     })
     
     
-struct chromsomeData{
+typedef struct{
     char chr_name [MAX_CHR_NAME];   //name of chromosome
-    long chr_len;                   //length of the chromosome in bases
-    long chr_len_no_N ;             //length of the chromosome in bases (no N)
-};    
+    int64_t chr_len;                   //length of the chromosome in bases
+    int64_t chr_len_no_N ;             //length of the chromosome in bases (no N bases)
+}chr_data_t;    
     
     
 //compare function for descending sort    
-int cmpfunc (const void * a, const void * b) {
-   struct chromsomeData *A = (struct chromsomeData *)a;
-   struct chromsomeData *B = (struct chromsomeData *)b;
+int32_t cmpfunc (const void * a, const void * b) {
+   chr_data_t *A = (chr_data_t *)a;
+   chr_data_t *B = (chr_data_t *)b;
    return ( (B->chr_len_no_N) - (A->chr_len_no_N) );
 }    
 
 //find the index of the minimum value in an array
-int minimum_index(long *list, int listsize){
-    long minimum=LONG_MAX;
-    int min_index=-1;
-    int j;
+int32_t minimum_index(int64_t *list, int32_t listsize){
+    int64_t minimum=INT64_MAX;
+    int32_t min_index=-1;
+    int32_t j;
     for(j=0;j<listsize;j++){
         if(list[j]<minimum){
             min_index=j;
@@ -61,8 +61,8 @@ int minimum_index(long *list, int listsize){
 }
   
 //find to which part a certain chromosome(chr_name) is belonging to
-int belong_to_which_part(char *chr_name, struct chromsomeData chr_per_part[][MAX_CHR],int *numchr_per_part){
-    int i,j;
+int32_t belong_to_which_part(char *chr_name, chr_data_t chr_per_part[][MAX_CHR],int32_t *numchr_per_part){
+    int32_t i,j;
     for(i=0;i<NUM_PARTS;i++){
         for(j=0;j<numchr_per_part[i];j++){
             if(strcmp(chr_per_part[i][j].chr_name,chr_name)==0){
@@ -78,7 +78,10 @@ int belong_to_which_part(char *chr_name, struct chromsomeData chr_per_part[][MAX
 int main(int argc, char **argv){
 	
     if(argc!=3){
-        fprintf(stderr,"Usage ./%s <reference.fa> <numparts>\n",argv[0]);
+        fprintf(stderr,"Usage : %s <reference.fa> <num_parts>\n",argv[0]);
+		fprintf(stderr,"reference.fa - path to the fasta file containing the reference genome");
+		fprintf(stderr,"num_parts - number of partitions in the index");
+		fprintf(stderr,"Example : $0 hg19.fa 4");
         exit(EXIT_FAILURE);
     }
     
@@ -89,28 +92,29 @@ int main(int argc, char **argv){
 	//number of parts
 	NUM_PARTS=atoi(argv[2]);
 	if(NUM_PARTS<2){
-		fprintf(stderr,"Number of parts should be greater than 2\n");
+		fprintf(stderr,"ERROR : Number of partitions should be equal or greater than 2\n");
 		exit(EXIT_FAILURE);
 	}
 
-	
-    
+	  
     //for getline
     size_t bufferSize = 1000;
 	char *buffer = malloc(sizeof(char)*bufferSize);
     errorCheckNULL(buffer);
     size_t readlinebytes = 0;
     
-    int num_chr=0;  //keep track of number of chromosomes in the fasta
-    struct chromsomeData theGenome[MAX_CHR];  //information for the whole genome
+    int32_t num_chr=0;  //keep track of number of chromosomes in the fasta
+    chr_data_t theGenome[MAX_CHR];  //information for the whole genome
     
     //variables for current chromosome being processed
-    long chr_len;
-    long chr_len_no_N;
+    int64_t chr_len=0;
+    int64_t chr_len_no_N=0;
     char chr_name[MAX_CHR_NAME];
   
   
-    //read through the file
+    /*********************** Read through the fast a and collect stats ******************************************/
+	//can be made faster by reading an fasta.fai index if needed
+	
     while(1){
         
         readlinebytes=getline(&buffer, &bufferSize, fasta); 
@@ -119,22 +123,22 @@ int main(int argc, char **argv){
                 theGenome[num_chr-1].chr_len=chr_len;
                 theGenome[num_chr-1].chr_len_no_N=chr_len_no_N;
                 strcpy(theGenome[num_chr-1].chr_name,chr_name);
-                fprintf(stderr,"Processed %s\n",theGenome[num_chr-1].chr_name);
+                fprintf(stderr,"Parsed %s\n",theGenome[num_chr-1].chr_name);
             }            
             break;
         }
         if(readlinebytes==0){
-            fprintf(stderr,"We read nothing. Why is that?\n");
+            fprintf(stderr,"ERROR : We read nothing. Something is wrong in the fasta file?\n");
             exit(EXIT_FAILURE);
         }
         
-        //a new chromosme
+        //a new chromosome
         if(buffer[0]=='>'){     
             if (num_chr!=0){    //if not the first chromosome in the file, save the data of the previous chromosome that was processed    
                 theGenome[num_chr-1].chr_len=chr_len;
                 theGenome[num_chr-1].chr_len_no_N=chr_len_no_N;
                 strcpy(theGenome[num_chr-1].chr_name,chr_name);
-                fprintf(stderr,"Processed %s\n",theGenome[num_chr-1].chr_name);
+                fprintf(stderr,"Parsed %s\n",theGenome[num_chr-1].chr_name);
             }
             
             num_chr++;
@@ -144,27 +148,30 @@ int main(int argc, char **argv){
             chr_len_no_N=0;
             
             if(readlinebytes-1>MAX_CHR_NAME){
-                fprintf(stderr,"Chromosome name too large, Increase MAX_CHR_NAME\n");
+                fprintf(stderr,"ERROR : Chromosome name too large, Increase MAX_CHR_NAME\n");
                 exit(EXIT_FAILURE);   
             }
-            strcpy(chr_name, &buffer[1]); //copy the chromosome name except the >
-            if(chr_name[strlen(chr_name)-1]=='\n'){
+            strcpy(chr_name, &buffer[1]); //copy the chromosome name except the ">"
+            if(chr_name[strlen(chr_name)-1]=='\n' || chr_name[strlen(chr_name)-1]=='\r'){ //unix and max style
                 chr_name[strlen(chr_name)-1]='\0';
             }
-            
             else{
-                fprintf(stderr,"Bad new line character\n");
+                fprintf(stderr,"ERROR : New line character should be either '\n' or '\r'\n");
+				exit(EXIT_FAILURE);;
             }
+			if(chr_name[strlen(chr_name)-2]=='\r'){ //windows new lines
+				chr_name[strlen(chr_name)-2]='\0';
+			}
            
             if(num_chr>MAX_CHR){
-                fprintf(stderr,"So many chromosomes, Increase MAX_CHR\n");
+                fprintf(stderr,"ERROR : So many chromosomes, Increase MAX_CHR\n");
                 exit(EXIT_FAILURE);
             }
         }
         
         //going through the chromosome
         else{
-            int i=0;
+            int32_t i=0;
             //go through all bases
             for(i=0;i<readlinebytes;i++){
                 if(buffer[i]=='A' || buffer[i]=='C' || buffer[i]=='G' || buffer[i]=='T' || buffer[i]=='a' || buffer[i]=='c' || buffer[i]=='g' || buffer[i]=='t' ){
@@ -179,8 +186,10 @@ int main(int argc, char **argv){
                 else if(buffer[i]=='N' || buffer[i]=='n'){
                     chr_len++;
                 }                
-                else if(buffer[i]!='\n'){
-                    fprintf(stderr,"Funny character in %s : |%c|\n",chr_name,buffer[i]);
+                else if(buffer[i]=='\n' || buffer[i]=='\r' || buffer[i]=='\0'){
+				}	
+				else{
+                    fprintf(stderr,"WARNING : Invalid character found in %s : '%c'\n",chr_name,buffer[i]);
                     chr_len++;
                 }
             }
@@ -190,15 +199,15 @@ int main(int argc, char **argv){
     
     fclose(fasta); 
     
-    long sum=0;
-    fprintf(stderr,"\nNumber of chromosomes : %d\n",num_chr);
+    int64_t sum=0;
+    fprintf(stderr,"\nTotal number of chromosomes parsed: %d\n",num_chr);
     
     //print stats
     FILE *stat=fopen("stat.csv","w");
     errorCheckNULL(stat);    
    
     fprintf(stat,"Chromosome name,Chromosome length,Chromosome length (without N)\n");
-    int i;
+    int32_t i;
     for(i=0;i<num_chr;i++){
         fprintf (stat,"\"%s\",%ld,%ld\n",theGenome[i].chr_name, theGenome[i].chr_len, theGenome[i].chr_len_no_N);
         sum+=theGenome[i].chr_len_no_N;
@@ -207,7 +216,7 @@ int main(int argc, char **argv){
     
     //sort based on lengths
     //long per_part = sum/NUM_PARTS;
-    qsort(theGenome,num_chr,sizeof(struct chromsomeData),cmpfunc);
+    qsort(theGenome,num_chr,sizeof(chr_data_t),cmpfunc);
     
     //for(i=0;i<num_chr;i++){
     //    fprintf (stderr,"\"%s\",%ld,%ld\n",theGenome[i].chr_name, theGenome[i].chr_len, theGenome[i].chr_len_no_N);
@@ -217,9 +226,9 @@ int main(int argc, char **argv){
     
     /*********************** Now do the partitioning******************************************/
     
-    struct chromsomeData chr_per_part[NUM_PARTS][MAX_CHR]; //per each part we need to store the chromomes to be processed
-    int numchr_per_part[NUM_PARTS];                        //number of chromosomes for each part        
-    long length_per_part[NUM_PARTS];                       //the total length of chromomes (only ACGT) for each part        
+    chr_data_t chr_per_part[NUM_PARTS][MAX_CHR]; //per each part we need to store the chromosomes to be processed
+    int32_t numchr_per_part[NUM_PARTS];                        //number of chromosomes for each part        
+    int64_t length_per_part[NUM_PARTS];                       //the total length of chromosomes (only ACGT) for each part        
     
     for(i=0;i<NUM_PARTS;i++){
         numchr_per_part[i]=0;
@@ -227,8 +236,8 @@ int main(int argc, char **argv){
         
     }
     
-    int j;
-    int min_index=0;
+    int32_t j;
+    int32_t min_index=0;
 
     //go through all the chromosomes
     //add the current chromosome to the list with lowest sum
@@ -243,7 +252,7 @@ int main(int argc, char **argv){
     
     //print the stats for each part
     for(i=0;i<NUM_PARTS;i++){
-        fprintf(stderr,"\nFor part %d we have %d chromosomes with a sum length of %ld neucleotides (only ACGT)\n",i,numchr_per_part[i],length_per_part[i]);
+        fprintf(stderr,"For partition %d we have %d chromosomes with a sum length of %ld bases (without N)\n",i,numchr_per_part[i],length_per_part[i]);
         sprintf(filename,"stat_part%d.csv",i);
         stat=fopen(filename,"w");
         errorCheckNULL(stat); 
@@ -268,7 +277,7 @@ int main(int argc, char **argv){
         errorCheckNULL(outputs[i]);
     }
  
-    int part_index=-1;
+    int32_t part_index=-1;
  
     //read each line of the input file
     while(1){
@@ -277,28 +286,32 @@ int main(int argc, char **argv){
             break;
         }
         if(readlinebytes==0){
-            fprintf(stderr,"We read nothing. Why is that?\n");
+            fprintf(stderr,"ERROR : We read nothing. Something is wrong in the fasta file?\n");
             exit(EXIT_FAILURE);
         }
         
         if(buffer[0]=='>'){
 
             if(readlinebytes-1>MAX_CHR_NAME){
-                fprintf(stderr,"Chromosome name too large, Increase MAX_CHR_NAME\n");
+                fprintf(stderr,"ERROR : Chromosome name too large, Increase MAX_CHR_NAME\n");
                 exit(EXIT_FAILURE);   
             }
             strcpy(chr_name, &buffer[1]);
-            if(chr_name[strlen(chr_name)-1]=='\n'){
+            if(chr_name[strlen(chr_name)-1]=='\n' || chr_name[strlen(chr_name)-1]=='\r'){ //unix and max style
                 chr_name[strlen(chr_name)-1]='\0';
             }
             else{
-                fprintf(stderr,"Bad new line character\n");
+                fprintf(stderr,"ERROR : New line character should be either '\n' or '\r'\n");
+				exit(EXIT_FAILURE);;
             }
+			if(chr_name[strlen(chr_name)-2]=='\r'){ //windows new lines
+				chr_name[strlen(chr_name)-2]='\0';
+			}
             
             //find to which part this chromosome must be allocated to
             part_index=belong_to_which_part(chr_name, chr_per_part,numchr_per_part);
             fprintf(outputs[part_index],"%s",buffer); 
-            fprintf(stderr,"Printing chromosome *%s* to part %d\n",chr_name,part_index);
+            fprintf(stderr,"Writing chromosome %s to partition %d\n",chr_name,part_index);
                         
 
         }
