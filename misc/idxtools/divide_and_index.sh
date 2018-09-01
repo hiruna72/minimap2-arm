@@ -2,8 +2,6 @@
 
 #by default 0. If you want to get peak ram usage make this 1. In that case make sure /usr/bin/time is installed.
 MEASURE_MAX_RAM=0;
-#C compiler location
-CC=gcc
 
 error_exit ()
 {
@@ -44,7 +42,7 @@ BASEDIR=$(dirname "$0")
 set -e
 
 echo "Compiling divide.c"
-$CC -Wall -O2 $BASEDIR/divide.c -o divide 
+make || gcc -Wall -O2 $BASEDIR/divide.c -o divide 
 
 echo "Running divider"
 if [ "$MEASURE_MAX_RAM" -eq 1 ]; then
@@ -62,7 +60,7 @@ do
 	if [ "$MEASURE_MAX_RAM" -eq 1 ]; then
 		/usr/bin/time -v $MINIMAP -a -x $PROFILE -d part$i.idx part$i.fa 2> >(tee part$i.log)
 	else
-		$MINIMAP -a -x $PROFILE -d part$i.idx part$i.fa
+		$MINIMAP -a -x $PROFILE -d part$i.idx part$i.fa > /dev/null
 	fi
 	LIST="$LIST"" part$i.idx"
 	rm part$i.fa
