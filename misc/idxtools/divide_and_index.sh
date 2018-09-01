@@ -41,8 +41,6 @@ command "$MINIMAP" --version >/dev/null 2>&1 || error_exit "ERROR : $MINIMAP doe
 
 BASEDIR=$(dirname "$0")
 
-test -e stat.csv && rm *.csv
-
 set -e
 
 echo "Compiling divide.c"

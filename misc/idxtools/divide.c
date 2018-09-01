@@ -2,21 +2,23 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include <limits.h>
 #include <assert.h>
 #include <stdint.h>
 
 #define MAX_CHR 1024                       //maximum number of chromosomes
 #define MAX_CHR_NAME 256                   //maximum number of characters in a chromosome name
-#define OUTPUT_FILE_FORMAT "part%d.fa"     //output file format
+#define OUTPUT_FILE_FORMAT "part%d.fa"     //output fasta file name format
+#define FASTA_STAT  "stat_fasta.csv"             //csv to write the fasta stats 
+#define PARTITION_STAT  "stat_part%d.csv"  //csv file name format to store stats for each partition 
 
-
-int32_t NUM_PARTS=0;                      //number of partitions in the index
+int8_t verbose=1;                           //verbosity level 0,1,2
+int8_t print_fasta_stat=0;                  //whether to output FASTA_STAT or not
+int32_t NUM_PARTS=0;                        //number of partitions in the index
 
 /*Die on error. Print the error and exit if the return value of the previous function NULL*/
 #define errorCheckNULL(ret) ({\
     if (ret==NULL){ \
-        fprintf(stderr,"Error at File %s line number %d : %s\n",__FILE__, __LINE__,strerror(errno));\
+        fprintf(stderr,"Error at File %s line number %d : %s.\n",__FILE__, __LINE__,strerror(errno));\
         exit(EXIT_FAILURE);\
     }\
     })
@@ -24,7 +26,7 @@ int32_t NUM_PARTS=0;                      //number of partitions in the index
 /*Die on error. Print the error and exit if the return value of the previous function is -1*/
 #define errorCheck(ret) ({\
     if (ret<0){ \
-        fprintf(stderr,"Error at File %s line number %d : %s\n",__FILE__, __LINE__,strerror(errno));\
+        fprintf(stderr,"Error at File %s line number %d : %s.\n",__FILE__, __LINE__,strerror(errno));\
         exit(EXIT_FAILURE);\
     }\
     })
@@ -61,6 +63,8 @@ int32_t minimum_index(int64_t *list, int32_t listsize){
 }
   
 //find to which part a certain chromosome(chr_name) is belonging to
+//in theory performance can be improved using a hash_table
+//however a genome does not contain millions of chromosomes, so for the moment O(n^2) method 
 int32_t belong_to_which_part(char *chr_name, chr_data_t chr_per_part[][MAX_CHR],int32_t *numchr_per_part){
     int32_t i,j;
     for(i=0;i<NUM_PARTS;i++){
@@ -92,16 +96,16 @@ int main(int argc, char **argv){
 	//number of parts
 	NUM_PARTS=atoi(argv[2]);
 	if(NUM_PARTS<2){
-		fprintf(stderr,"ERROR : Number of partitions should be equal or greater than 2\n");
+		fprintf(stderr,"ERROR : Number of partitions should be equal or greater than 2.\n");
 		exit(EXIT_FAILURE);
 	}
 
 	  
     //for getline
     size_t bufferSize = 1000;
-	char *buffer = malloc(sizeof(char)*bufferSize);
+	char *buffer = (char *)malloc(sizeof(char)*bufferSize);
     errorCheckNULL(buffer);
-    size_t readlinebytes = 0;
+    size_t readlinebytes = 0; 
     
     int32_t num_chr=0;  //keep track of number of chromosomes in the fasta
     chr_data_t theGenome[MAX_CHR];  //information for the whole genome
@@ -114,7 +118,10 @@ int main(int argc, char **argv){
   
     /*********************** Read through the fast a and collect stats ******************************************/
 	//can be made faster by reading an fasta.fai index if needed
-	
+
+    if(verbose>=1){
+        fprintf(stderr,"INFO : Collecting chromosome stats.\n");
+    }	
     while(1){
         
         readlinebytes=getline(&buffer, &bufferSize, fasta); 
@@ -123,12 +130,14 @@ int main(int argc, char **argv){
                 theGenome[num_chr-1].chr_len=chr_len;
                 theGenome[num_chr-1].chr_len_no_N=chr_len_no_N;
                 strcpy(theGenome[num_chr-1].chr_name,chr_name);
-                fprintf(stderr,"Parsed %s\n",theGenome[num_chr-1].chr_name);
+                if(verbose>=2){
+                    fprintf(stderr,"Parsed %s.\n",theGenome[num_chr-1].chr_name);
+                }
             }            
             break;
         }
         if(readlinebytes==0){
-            fprintf(stderr,"ERROR : We read nothing. Something is wrong in the fasta file?\n");
+            fprintf(stderr,"ERROR : We read nothing. Something is wrong in the fasta file.\n");
             exit(EXIT_FAILURE);
         }
         
@@ -138,7 +147,9 @@ int main(int argc, char **argv){
                 theGenome[num_chr-1].chr_len=chr_len;
                 theGenome[num_chr-1].chr_len_no_N=chr_len_no_N;
                 strcpy(theGenome[num_chr-1].chr_name,chr_name);
-                fprintf(stderr,"Parsed %s\n",theGenome[num_chr-1].chr_name);
+                if(verbose>=2){
+                    fprintf(stderr,"Parsed %s.\n",theGenome[num_chr-1].chr_name);
+                }
             }
             
             num_chr++;
@@ -148,15 +159,15 @@ int main(int argc, char **argv){
             chr_len_no_N=0;
             
             if(readlinebytes-1>MAX_CHR_NAME){
-                fprintf(stderr,"ERROR : Chromosome name too large, Increase MAX_CHR_NAME\n");
+                fprintf(stderr,"ERROR : Chromosome name too large, Increase MAX_CHR_NAME.\n");
                 exit(EXIT_FAILURE);   
             }
-            strcpy(chr_name, &buffer[1]); //copy the chromosome name except the ">"
-            if(chr_name[strlen(chr_name)-1]=='\n' || chr_name[strlen(chr_name)-1]=='\r'){ //unix and max style
+            strcpy(chr_name, &buffer[1]); //copy the chromosome name except the ">". In theory only the chr name is needed and the other comments can be removed (for efficiency) 
+            if(chr_name[strlen(chr_name)-1]=='\n' || chr_name[strlen(chr_name)-1]=='\r'){ //unix and mac os newline style
                 chr_name[strlen(chr_name)-1]='\0';
             }
             else{
-                fprintf(stderr,"ERROR : New line character should be either '\n' or '\r'\n");
+                fprintf(stderr,"ERROR : New line character should be either '\n' or '\r'.\n");
 				exit(EXIT_FAILURE);;
             }
 			if(chr_name[strlen(chr_name)-2]=='\r'){ //windows new lines
@@ -164,7 +175,7 @@ int main(int argc, char **argv){
 			}
            
             if(num_chr>MAX_CHR){
-                fprintf(stderr,"ERROR : So many chromosomes, Increase MAX_CHR\n");
+                fprintf(stderr,"ERROR : So many chromosomes, Increase MAX_CHR.\n");
                 exit(EXIT_FAILURE);
             }
         }
@@ -189,7 +200,7 @@ int main(int argc, char **argv){
                 else if(buffer[i]=='\n' || buffer[i]=='\r' || buffer[i]=='\0'){
 				}	
 				else{
-                    fprintf(stderr,"WARNING : Invalid character found in %s : '%c'\n",chr_name,buffer[i]);
+                    fprintf(stderr,"WARNING : Invalid character found in %s : '%c'.\n",chr_name,buffer[i]);
                     chr_len++;
                 }
             }
@@ -200,19 +211,22 @@ int main(int argc, char **argv){
     fclose(fasta); 
     
     int64_t sum=0;
-    fprintf(stderr,"\nTotal number of chromosomes parsed: %d\n",num_chr);
-    
-    //print stats
-    FILE *stat=fopen("stat.csv","w");
-    errorCheckNULL(stat);    
-   
-    fprintf(stat,"Chromosome name,Chromosome length,Chromosome length (without N)\n");
-    int32_t i;
-    for(i=0;i<num_chr;i++){
-        fprintf (stat,"\"%s\",%ld,%ld\n",theGenome[i].chr_name, theGenome[i].chr_len, theGenome[i].chr_len_no_N);
-        sum+=theGenome[i].chr_len_no_N;
+    if(verbose>=1){
+        fprintf(stderr,"INFO : %d chromosomes parsed.\n",num_chr);
     }
-    fclose(stat);
+    
+    if(print_fasta_stat){
+        //print stats
+        FILE *stat=fopen(FASTA_STAT,"w");
+        errorCheckNULL(stat);    
+        fprintf(stat,"chromosome_name,chromosome_length_with_N,chromosome_length_without_N)\n");
+        int32_t i;
+        for(i=0;i<num_chr;i++){
+            fprintf (stat,"\"%s\",%ld,%ld\n",theGenome[i].chr_name, theGenome[i].chr_len, theGenome[i].chr_len_no_N);
+            sum+=theGenome[i].chr_len_no_N;
+        }
+        fclose(stat);
+    }
     
     //sort based on lengths
     //long per_part = sum/NUM_PARTS;
@@ -225,11 +239,15 @@ int main(int argc, char **argv){
     
     
     /*********************** Now do the partitioning******************************************/
-    
+ 
+    if(verbose>=1){
+        fprintf(stderr,"INFO : Determining partitions.\n");
+    }       
     chr_data_t chr_per_part[NUM_PARTS][MAX_CHR]; //per each part we need to store the chromosomes to be processed
     int32_t numchr_per_part[NUM_PARTS];                        //number of chromosomes for each part        
-    int64_t length_per_part[NUM_PARTS];                       //the total length of chromosomes (only ACGT) for each part        
-    
+    int64_t length_per_part[NUM_PARTS];                       //the total length of chromosomes (no N) for each part        
+    int32_t i;    
+
     for(i=0;i<NUM_PARTS;i++){
         numchr_per_part[i]=0;
         length_per_part[i]=0;
@@ -252,19 +270,25 @@ int main(int argc, char **argv){
     
     //print the stats for each part
     for(i=0;i<NUM_PARTS;i++){
-        fprintf(stderr,"For partition %d we have %d chromosomes with a sum length of %ld bases (without N)\n",i,numchr_per_part[i],length_per_part[i]);
-        sprintf(filename,"stat_part%d.csv",i);
-        stat=fopen(filename,"w");
+        sprintf(filename,PARTITION_STAT,i);
+        FILE* stat=fopen(filename,"w");
         errorCheckNULL(stat); 
-        fprintf(stat,"Chromosome name,Chromosome length,Chromosome length (without N)\n");
+        fprintf(stat,"chromosome_name,chromosome_length_with_N,chromosome_length_without_N\n");
         for(j=0;j<numchr_per_part[i];j++){
             fprintf(stat,"%s,%ld,%ld\n",chr_per_part[i][j].chr_name, chr_per_part[i][j].chr_len, chr_per_part[i][j].chr_len_no_N);
         }
         fclose(stat);
+        if(verbose>=1){
+            fprintf(stderr,"INFO : Partition %d - %d chromosomes (%ld non-ambiguous bases). See %s.\n",i,numchr_per_part[i],length_per_part[i],filename);
+        }
         
     }
     
     /*********************** Now write the fastas for each part******************************************/
+
+    if(verbose>=1){
+        fprintf(stderr,"INFO : Writing partitions.\n");
+    }   
 
     fasta = fopen(argv[1],"r");
     errorCheckNULL(fasta);    
@@ -286,22 +310,22 @@ int main(int argc, char **argv){
             break;
         }
         if(readlinebytes==0){
-            fprintf(stderr,"ERROR : We read nothing. Something is wrong in the fasta file?\n");
+            fprintf(stderr,"ERROR : We read nothing. Something is wrong in the fasta file.\n");
             exit(EXIT_FAILURE);
         }
         
         if(buffer[0]=='>'){
 
             if(readlinebytes-1>MAX_CHR_NAME){
-                fprintf(stderr,"ERROR : Chromosome name too large, Increase MAX_CHR_NAME\n");
+                fprintf(stderr,"ERROR : Chromosome name too large, Increase MAX_CHR_NAME.\n");
                 exit(EXIT_FAILURE);   
             }
             strcpy(chr_name, &buffer[1]);
-            if(chr_name[strlen(chr_name)-1]=='\n' || chr_name[strlen(chr_name)-1]=='\r'){ //unix and max style
+            if(chr_name[strlen(chr_name)-1]=='\n' || chr_name[strlen(chr_name)-1]=='\r'){ //unix and mac newline style
                 chr_name[strlen(chr_name)-1]='\0';
             }
             else{
-                fprintf(stderr,"ERROR : New line character should be either '\n' or '\r'\n");
+                fprintf(stderr,"ERROR : New line character should be either '\n' or '\r'.\n");
 				exit(EXIT_FAILURE);;
             }
 			if(chr_name[strlen(chr_name)-2]=='\r'){ //windows new lines
@@ -311,8 +335,9 @@ int main(int argc, char **argv){
             //find to which part this chromosome must be allocated to
             part_index=belong_to_which_part(chr_name, chr_per_part,numchr_per_part);
             fprintf(outputs[part_index],"%s",buffer); 
-            fprintf(stderr,"Writing chromosome %s to partition %d\n",chr_name,part_index);
-                        
+            if(verbose>=2){
+                fprintf(stderr,"Writing chromosome %s to partition %d.\n",chr_name,part_index);
+            }                        
 
         }
         else{
@@ -328,6 +353,9 @@ int main(int argc, char **argv){
     fclose(fasta); 
     free(buffer);
 
+    if(verbose>=1){
+        fprintf(stderr,"INFO : Done.\n");
+    }   
     
 	return 0;
 }
