@@ -42,7 +42,7 @@ BASEDIR=$(dirname "$0")
 set -e
 
 echo "Compiling divide.c"
-make || gcc -Wall -O2 $BASEDIR/divide.c -o divide 
+gcc -Wall -O2 $BASEDIR/divide.c -o divide
 
 echo "Running divider"
 if [ "$MEASURE_MAX_RAM" -eq 1 ]; then
