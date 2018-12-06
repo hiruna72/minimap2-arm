@@ -30,11 +30,11 @@ MINIMAP=$4
 PROFILE=$5
 
 #checking args
-[ -e "$REFERENCE" ] || error_exit "ERROR : $REFERENCE does not exist." 
+[ -e "$REFERENCE" ] || error_exit "ERROR : $REFERENCE does not exist."
 [ "$NUMPARTS" -lt 2 ] && error_exit "num_parts should be 2 or higher"
 command "$MINIMAP" --version >/dev/null 2>&1 || error_exit "ERROR : $MINIMAP does not exist or does not have executable permission"
 [ "$PROFILE" = "map-ont" ] || [ "$PROFILE" = "map-pb" ]  || error_exit "ERROR : minimap2_profile accepts only map-ont or map-pb"
-[ -w "./" ] || error_exit "ERROR : Current directory is not writable." 
+[ -w "./" ] || error_exit "ERROR : Current directory is not writable."
 
 
 BASEDIR=$(dirname "$0")
@@ -42,11 +42,11 @@ BASEDIR=$(dirname "$0")
 set -e
 
 echo "Compiling divide.c"
-make || gcc -Wall -O2 $BASEDIR/divide.c -o divide 
+gcc -Wall -O2 $BASEDIR/divide.c -o divide
 
 echo "Running divider"
 if [ "$MEASURE_MAX_RAM" -eq 1 ]; then
-	/usr/bin/time -v ./divide $REFERENCE $NUMPARTS  2> >(tee divider.log) 
+	/usr/bin/time -v ./divide $REFERENCE $NUMPARTS  2> >(tee divider.log)
 else
 	./divide $REFERENCE $NUMPARTS
 fi
@@ -66,8 +66,8 @@ do
 	rm part$i.fa
 done
 
-	
-echo "concatenating $LIST"	
+
+echo "concatenating $LIST"
 cat $LIST > $OUTIDX
 rm $LIST
 

@@ -49,9 +49,9 @@ stats_before_opti(){
 	for i in 1700M 850M 350M 140M
 	do
 		echo "Mapping to partitioned index for -I $i with merging: SAM"
-		/usr/bin/time -v  $MINIMAP -a -x $PROFILE hg38noAlt_$i.idx $READS  --multi-pREFERENCEix tmp > merge.$i.sam 2>> $SAM_MAP_LOG
+		/usr/bin/time -v  $MINIMAP -a -x $PROFILE hg38noAlt_$i.idx $READS  --multi-prefix tmp > merge.$i.sam 2>> $SAM_MAP_LOG
 		echo "Mapping to partitioned index for -I $i with merging: PAF"
-		/usr/bin/time -v $MINIMAP -x $PROFILE hg38noAlt_$i.idx $READS  --multi-pREFERENCEix tmp > merge.$i.paf 2>> $PAF_MAP_LOG
+		/usr/bin/time -v $MINIMAP -x $PROFILE hg38noAlt_$i.idx $READS  --multi-prefix tmp > merge.$i.paf 2>> $PAF_MAP_LOG
 	done
 
 	rm *.sam *.paf *.idx
