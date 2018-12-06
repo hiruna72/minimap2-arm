@@ -33,3 +33,5 @@ Uses the inbuilt indexing option in minimap2
 The bash script that evaluates the peak memory usage for the index with chromosome balancing.
 Uses `divide_and_index.sh` to construct the index.
 
+## `gettime.sh`
+The bash script that evaluates the runtime of single-idx and part-idx-merged.
