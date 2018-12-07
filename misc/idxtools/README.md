@@ -59,4 +59,6 @@ Notes :
 ```
 ./minimap2 -x map-ont hg38noAlt.idx rel3-nanopore-wgs-84868110-FAF01132.fastq.gz --multi-prefix tmp > aligned_out.paf
 ```
-- From Minimap2 version 2.12-r827 (https://github.com/lh3/minimap2/blob/master/NEWS.md#release-212-r827-6-august-2018) onwards, the merging functionality has been integrated into the main repository. This version additionally supports paired-end short reads and the merging operation is multi-threaded. Use `--split-prefix` option instead of `--multi-prefix`.
+- From [Minimap2 version 2.12-r827](https://github.com/lh3/minimap2/blob/master/NEWS.md#release-212-r827-6-august-2018) onwards, the merging functionality has been integrated into the main repository. This version additionally supports paired-end short reads and the merging operation is multi-threaded. Use `--split-prefix` option instead of `--multi-prefix`.
+
+- Some useful evaluation scripts (accuracy, difference, memory usage and runtime) are [here](eval)
