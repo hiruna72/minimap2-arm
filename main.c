@@ -5,6 +5,7 @@
 #include "minimap.h"
 #include "mmpriv.h"
 #include "merge.h"
+#include "logger.h"
 #ifdef HAVE_GETOPT
 #include <getopt.h>
 #else
@@ -89,11 +90,11 @@ static inline void yes_or_no(mm_mapopt_t *opt, int flag, int long_idx, const cha
 	if (yes_to_set) {
 		if (strcmp(arg, "yes") == 0 || strcmp(arg, "y") == 0) opt->flag |= flag;
 		else if (strcmp(arg, "no") == 0 || strcmp(arg, "n") == 0) opt->flag &= ~flag;
-		else fprintf(stderr, "[WARNING]\033[1;31m option '--%s' only accepts 'yes' or 'no'.\033[0m\n", long_options[long_idx].name);
+		else WARNING("1;31m option '--%s' only accepts 'yes' or 'no'", long_options[long_idx].name);
 	} else {
 		if (strcmp(arg, "yes") == 0 || strcmp(arg, "y") == 0) opt->flag &= ~flag;
 		else if (strcmp(arg, "no") == 0 || strcmp(arg, "n") == 0) opt->flag |= flag;
-		else fprintf(stderr, "[WARNING]\033[1;31m option '--%s' only accepts 'yes' or 'no'.\033[0m\n", long_options[long_idx].name);
+        else WARNING("1;31m option '--%s' only accepts 'yes' or 'no'", long_options[long_idx].name);
 	}
 }
 
@@ -117,7 +118,7 @@ int init_minimap2(int argc, char *argv[])
 	while ((c = getopt_long(argc, argv, opt_str, long_options, &long_idx)) >= 0) // apply option -x/preset first
 		if (c == 'x') {
 			if (mm_set_opt(optarg, &ipt, &opt) < 0) {
-				fprintf(stderr, "[ERROR] unknown preset '%s'\n", optarg);
+                ERROR("unknown preset '%s'", optarg);
 				return 1;
 			}
 			break;
@@ -195,7 +196,7 @@ int init_minimap2(int argc, char *argv[])
 			} else if (strcmp(optarg, "none") == 0) {
 				opt.flag &= ~MM_F_OUT_CS;
 			} else if (mm_verbose >= 2) {
-				fprintf(stderr, "[WARNING]\033[1;31m --cs only takes 'short' or 'long'. Invalid values are assumed to be 'short'.\033[0m\n");
+                WARNING("1;31m %s only takes 'short' or 'long'. Invalid values are assumed to be 'short'", "--cs");
 			}
 		} else if (c == 0 && long_idx == 19) { // --splice-flank
 			yes_or_no(&opt, MM_F_SPLICE_FLANK, long_idx, optarg, 1);
@@ -206,7 +207,7 @@ int init_minimap2(int argc, char *argv[])
 		} else if (c == 'S') {
 			opt.flag |= MM_F_OUT_CS | MM_F_CIGAR | MM_F_OUT_CS_LONG;
 			if (mm_verbose >= 2)
-				fprintf(stderr, "[WARNING]\033[1;31m option -S is deprecated and may be removed in future. Please use --cs=long instead.\033[0m\n");
+                WARNING("1;31m option -S is deprecated and may be removed in future. Please use %s instead", "--cs=long");
 		} else if (c == 'V') {
 			puts(MM_VERSION);
 			return 0;
@@ -223,7 +224,7 @@ int init_minimap2(int argc, char *argv[])
 			else if (*optarg == 'r') opt.flag |= MM_F_SPLICE_REV, opt.flag &= ~MM_F_SPLICE_FOR; // match CT-AC (reverse complement of GT-AG)
 			else if (*optarg == 'n') opt.flag &= ~(MM_F_SPLICE_FOR|MM_F_SPLICE_REV); // don't try to match the GT-AG signal
 			else {
-				fprintf(stderr, "[ERROR]\033[1;31m unrecognized cDNA direction\033[0m\n");
+                ERROR("%s", "1;31m unrecognized cDNA direction");
 				return 1;
 			}
 		} else if (c == 'z') {
@@ -236,13 +237,13 @@ int init_minimap2(int argc, char *argv[])
 			opt.e = opt.e2 = strtol(optarg, &s, 10);
 			if (*s == ',') opt.e2 = strtol(s + 1, &s, 10);
 		} else if (c==0 && long_idx == 33) { //multi-part
-			fprintf(stderr, "[WARNING]\033[1;31m option --multi-prefix is experimental. Currently works only with uni-segment reads.\033[0m\n");
+            WARNING("%s", "1;31m option --multi-prefix is experimental. Currently works only with uni-segment reads");
 			opt.multi_prefix=optarg;
 		}
 
 	}
 	if ((opt.flag & MM_F_SPLICE) && (opt.flag & MM_F_FRAG_MODE)) {
-		fprintf(stderr, "[ERROR]\033[1;31m --splice and --frag should not be specified at the same time.\033[0m\n");
+        ERROR("%s", "1;31m --splice and --frag should not be specified at the same time");
 		return 1;
 	}
 	if (!fnw && !(opt.flag&MM_F_CIGAR))
@@ -251,82 +252,82 @@ int init_minimap2(int argc, char *argv[])
 		return 1;
 
 	if (argc == optind || fp_help == stdout) {
-		fprintf(fp_help, "Usage: minimap2 [options] <target.fa>|<target.idx> [query.fa] [...]\n");
-		fprintf(fp_help, "Options:\n");
-		fprintf(fp_help, "  Indexing:\n");
-		fprintf(fp_help, "    -H           use homopolymer-compressed k-mer (preferrable for PacBio)\n");
-		fprintf(fp_help, "    -k INT       k-mer size (no larger than 28) [%d]\n", ipt.k);
-		fprintf(fp_help, "    -w INT       minizer window size [%d]\n", ipt.w);
-		fprintf(fp_help, "    -I NUM       split index for every ~NUM input bases [4G]\n");
-		fprintf(fp_help, "    -d FILE      dump index to FILE []\n");
-		fprintf(fp_help, "  Mapping:\n");
-		fprintf(fp_help, "    -f FLOAT     filter out top FLOAT fraction of repetitive minimizers [%g]\n", opt.mid_occ_frac);
-		fprintf(fp_help, "    -g NUM       stop chain enlongation if there are no minimizers in INT-bp [%d]\n", opt.max_gap);
-		fprintf(fp_help, "    -G NUM       max intron length (effective with -xsplice; changing -r) [200k]\n");
-		fprintf(fp_help, "    -F NUM       max fragment length (effective with -xsr or in the fragment mode) [800]\n");
-		fprintf(fp_help, "    -r NUM       bandwidth used in chaining and DP-based alignment [%d]\n", opt.bw);
-		fprintf(fp_help, "    -n INT       minimal number of minimizers on a chain [%d]\n", opt.min_cnt);
-		fprintf(fp_help, "    -m INT       minimal chaining score (matching bases minus log gap penalty) [%d]\n", opt.min_chain_score);
-//		fprintf(fp_help, "    -T INT       SDUST threshold; 0 to disable SDUST [%d]\n", opt.sdust_thres); // TODO: this option is never used; might be buggy
-		fprintf(fp_help, "    -X           skip self and dual mappings (for the all-vs-all mode)\n");
-		fprintf(fp_help, "    -p FLOAT     min secondary-to-primary score ratio [%g]\n", opt.pri_ratio);
-		fprintf(fp_help, "    -N INT       retain at most INT secondary alignments [%d]\n", opt.best_n);
-		fprintf(fp_help, "  Alignment:\n");
-		fprintf(fp_help, "    -A INT       matching score [%d]\n", opt.a);
-		fprintf(fp_help, "    -B INT       mismatch penalty [%d]\n", opt.b);
-		fprintf(fp_help, "    -O INT[,INT] gap open penalty [%d,%d]\n", opt.q, opt.q2);
-		fprintf(fp_help, "    -E INT[,INT] gap extension penalty; a k-long gap costs min{O1+k*E1,O2+k*E2} [%d,%d]\n", opt.e, opt.e2);
-		fprintf(fp_help, "    -z INT[,INT] Z-drop score and inversion Z-drop score [%d,%d]\n", opt.zdrop, opt.zdrop_inv);
-		fprintf(fp_help, "    -s INT       minimal peak DP alignment score [%d]\n", opt.min_dp_max);
-		fprintf(fp_help, "    -u CHAR      how to find GT-AG. f:transcript strand, b:both strands, n:don't match GT-AG [n]\n");
-		fprintf(fp_help, "  Input/Output:\n");
-		fprintf(fp_help, "    -a           output in the SAM format (PAF by default)\n");
-		fprintf(fp_help, "    -Q           don't output base quality in SAM\n");
-		fprintf(fp_help, "    -L           write CIGAR with >65535 ops at the CG tag\n");
-		fprintf(fp_help, "    -R STR       SAM read group line in a format like '@RG\\tID:foo\\tSM:bar' []\n");
-		fprintf(fp_help, "    -c           output CIGAR in PAF\n");
-		fprintf(fp_help, "    --cs[=STR]   output the cs tag; STR is 'short' (if absent) or 'long' [none]\n");
-		fprintf(fp_help, "    --MD         output the MD tag\n");
-		fprintf(fp_help, "    --eqx        write =/X CIGAR operators\n");
-		fprintf(fp_help, "    -Y           use soft clipping for supplementary alignments\n");
-		fprintf(fp_help, "    -t INT       number of threads [%d]\n", n_threads);
-		fprintf(fp_help, "    -K NUM       minibatch size for mapping [500M]\n");
-//		fprintf(fp_help, "    -v INT       verbose level [%d]\n", mm_verbose);
-		fprintf(fp_help, "    --version    show version number\n");
-		fprintf(fp_help, "  Preset:\n");
-		fprintf(fp_help, "    -x STR       preset (always applied before other options; see minimap2.1 for details) []\n");
-		fprintf(fp_help, "                 - map-pb/map-ont: PacBio/Nanopore vs reference mapping\n");
-		fprintf(fp_help, "                 - ava-pb/ava-ont: PacBio/Nanopore read overlap\n");
-		fprintf(fp_help, "                 - asm5/asm10/asm20: asm-to-ref mapping, for ~0.1/1/5%% sequence divergence\n");
-		fprintf(fp_help, "                 - splice: long-read spliced alignment\n");
-		fprintf(fp_help, "                 - sr: genomic short-read mapping\n");
-		fprintf(fp_help, "\nSee `man ./minimap2.1' for detailed description of command-line options.\n");
+		PRINTTOSTREAM(fp_help, "%s", "Usage: minimap2 [options] <target.fa>|<target.idx> [query.fa] [...]");
+		PRINTTOSTREAM(fp_help, "%s", "Options:");
+		PRINTTOSTREAM(fp_help, "%s", "  Indexing:");
+		PRINTTOSTREAM(fp_help, "%s", "    -H           use homopolymer-compressed k-mer (preferrable for PacBio)");
+		PRINTTOSTREAM(fp_help, "    -k INT       k-mer size (no larger than 28) [%d]", ipt.k);
+		PRINTTOSTREAM(fp_help, "    -w INT       minizer window size [%d]", ipt.w);
+		PRINTTOSTREAM(fp_help, "%s", "    -I NUM       split index for every ~NUM input bases [4G]");
+		PRINTTOSTREAM(fp_help, "%s", "    -d FILE      dump index to FILE []");
+		PRINTTOSTREAM(fp_help, "%s", "  Mapping:");
+		PRINTTOSTREAM(fp_help, "    -f FLOAT     filter out top FLOAT fraction of repetitive minimizers [%g]", opt.mid_occ_frac);
+		PRINTTOSTREAM(fp_help, "    -g NUM       stop chain enlongation if there are no minimizers in INT-bp [%d]", opt.max_gap);
+		PRINTTOSTREAM(fp_help, "%s", "    -G NUM       max intron length (effective with -xsplice; changing -r) [200k]");
+		PRINTTOSTREAM(fp_help, "%s", "    -F NUM       max fragment length (effective with -xsr or in the fragment mode) [800]");
+		PRINTTOSTREAM(fp_help, "    -r NUM       bandwidth used in chaining and DP-based alignment [%d]", opt.bw);
+		PRINTTOSTREAM(fp_help, "    -n INT       minimal number of minimizers on a chain [%d]", opt.min_cnt);
+		PRINTTOSTREAM(fp_help, "    -m INT       minimal chaining score (matching bases minus log gap penalty) [%d]", opt.min_chain_score);
+//		PRINTTOSTREAM(fp_help, "%s", "    -T INT       SDUST threshold; 0 to disable SDUST [%d]\n", opt.sdust_thres); // TODO: this option is never used; might be buggy
+		PRINTTOSTREAM(fp_help, "%s", "    -X           skip self and dual mappings (for the all-vs-all mode)");
+		PRINTTOSTREAM(fp_help, "    -p FLOAT     min secondary-to-primary score ratio [%g]", opt.pri_ratio);
+		PRINTTOSTREAM(fp_help, "    -N INT       retain at most INT secondary alignments [%d]", opt.best_n);
+		PRINTTOSTREAM(fp_help, "%s", "  Alignment:");
+		PRINTTOSTREAM(fp_help, "    -A INT       matching score [%d]", opt.a);
+		PRINTTOSTREAM(fp_help, "    -B INT       mismatch penalty [%d]", opt.b);
+		PRINTTOSTREAM(fp_help, "    -O INT[,INT] gap open penalty [%d,%d]", opt.q, opt.q2);
+		PRINTTOSTREAM(fp_help, "    -E INT[,INT] gap extension penalty; a k-long gap costs min{O1+k*E1,O2+k*E2} [%d,%d]", opt.e, opt.e2);
+		PRINTTOSTREAM(fp_help, "    -z INT[,INT] Z-drop score and inversion Z-drop score [%d,%d]", opt.zdrop, opt.zdrop_inv);
+		PRINTTOSTREAM(fp_help, "    -s INT       minimal peak DP alignment score [%d]", opt.min_dp_max);
+		PRINTTOSTREAM(fp_help, "%s", "    -u CHAR      how to find GT-AG. f:transcript strand, b:both strands, n:don't match GT-AG [n]");
+		PRINTTOSTREAM(fp_help, "%s", "  Input/Output:");
+		PRINTTOSTREAM(fp_help, "%s", "    -a           output in the SAM format (PAF by default)");
+		PRINTTOSTREAM(fp_help, "%s", "    -Q           don't output base quality in SAM");
+		PRINTTOSTREAM(fp_help, "%s", "    -L           write CIGAR with >65535 ops at the CG tag");
+		PRINTTOSTREAM(fp_help, "%s", "    -R STR       SAM read group line in a format like '@RG\\tID:foo\\tSM:bar' []");
+		PRINTTOSTREAM(fp_help, "%s", "    -c           output CIGAR in PAF");
+		PRINTTOSTREAM(fp_help, "%s", "    --cs[=STR]   output the cs tag; STR is 'short' (if absent) or 'long' [none]");
+		PRINTTOSTREAM(fp_help, "%s", "    --MD         output the MD tag");
+		PRINTTOSTREAM(fp_help, "%s", "    --eqx        write =/X CIGAR operators");
+		PRINTTOSTREAM(fp_help, "%s", "    -Y           use soft clipping for supplementary alignments");
+		PRINTTOSTREAM(fp_help, "    -t INT       number of threads [%d]", n_threads);
+		PRINTTOSTREAM(fp_help, "%s", "    -K NUM       minibatch size for mapping [500M]");
+//		PRINTTOSTREAM(fp_help, "%s", "    -v INT       verbose level [%d]\n", mm_verbose);
+		PRINTTOSTREAM(fp_help, "%s", "    --version    show version number");
+		PRINTTOSTREAM(fp_help, "%s", "  Preset:");
+		PRINTTOSTREAM(fp_help, "%s", "    -x STR       preset (always applied before other options; see minimap2.1 for details) []");
+		PRINTTOSTREAM(fp_help, "%s", "                 - map-pb/map-ont: PacBio/Nanopore vs reference mapping");
+		PRINTTOSTREAM(fp_help, "%s", "                 - ava-pb/ava-ont: PacBio/Nanopore read overlap");
+		PRINTTOSTREAM(fp_help, "%s", "                 - asm5/asm10/asm20: asm-to-ref mapping, for ~0.1/1/5%% sequence divergence");
+		PRINTTOSTREAM(fp_help, "%s", "                 - splice: long-read spliced alignment");
+		PRINTTOSTREAM(fp_help, "%s", "                 - sr: genomic short-read mapping");
+		PRINTTOSTREAM(fp_help, "%s", "See `man ./minimap2.1' for detailed description of command-line options.");
 		return fp_help == stdout? 0 : 1;
 	}
 
 	if ((opt.flag & MM_F_SR) && argc - optind > 3) {
-		fprintf(stderr, "[ERROR] incorrect input: in the sr mode, please specify no more than two query files.\n");
+        ERROR("%s", "incorrect input: in the sr mode, please specify no more than two query files");
 		return 1;
 	}
 	idx_rdr = mm_idx_reader_open(argv[optind], &ipt, fnw);
 	if (idx_rdr == 0) {
-		fprintf(stderr, "[ERROR] failed to open file '%s'\n", argv[optind]);
+        ERROR("failed to open file '%s'\n", argv[optind]);
 		return 1;
 	}
 	if (!idx_rdr->is_idx && fnw == 0 && argc - optind < 2) {
-		fprintf(stderr, "[ERROR] missing input: please specify a query file to map or option -d to keep the index\n");
+        ERROR("%s", "missing input: please specify a query file to map or option -d to keep the index");
 		mm_idx_reader_close(idx_rdr);
 		return 1;
 	}
 	if (opt.best_n == 0 && (opt.flag&MM_F_CIGAR) && mm_verbose >= 2)
-		fprintf(stderr, "[WARNING]\033[1;31m `-N 0' reduces alignment accuracy. Please use --secondary=no to suppress secondary alignments.\033[0m\n");
+        WARNING("%s", "1;31m `-N 0' reduces alignment accuracy. Please use --secondary=no to suppress secondary alignments");
 	if ((opt.multi_prefix!=NULL) && (argc - (optind + 1) > 1)) {
-		fprintf(stderr,"[ERROR]\033[1;31m --multi-prefix is not yet implemented for multi-segment reads\033[0m\n");
+        ERROR("%s", "1;31m --multi-prefix is not yet implemented for multi-segment reads");
 		return 1;
     }
 	while ((mi = mm_idx_reader_read(idx_rdr, n_threads)) != 0) {
 		if ((opt.flag & MM_F_CIGAR) && (mi->flag & MM_I_NO_SEQ)) {
-			fprintf(stderr, "[ERROR] the prebuilt index doesn't contain sequences.\n");
+            ERROR("%s", "the prebuilt index doesn't contain sequences");
 			mm_idx_destroy(mi);
 			mm_idx_reader_close(idx_rdr);
 			return 1;
@@ -337,12 +338,12 @@ int init_minimap2(int argc, char *argv[])
 			} else {
 				mm_write_sam_hdr(0, rg, MM_VERSION, argc, argv);
 				if (mm_verbose >= 2)
-					fprintf(stderr, "[WARNING]\033[1;31m For a multi-part index, no @SQ lines will be outputted.\033[0m\n");
+                    WARNING("%s", "1;31m For a multi-part index, no @SQ lines will be outputted");
 			}
 		}
 		if (mm_verbose >= 3)
-			fprintf(stderr, "[M::%s::%.3f*%.2f] loaded/built the index for %d target sequence(s)\n",
-					__func__, realtime() - mm_realtime0, cputime() / (realtime() - mm_realtime0), mi->n_seq);
+            INFO("[M::%s::%.3f*%.2f] loaded/built the index for %d target sequence(s)",
+                 __func__, realtime() - mm_realtime0, cputime() / (realtime() - mm_realtime0), mi->n_seq);
 		if (argc != optind + 1) mm_mapopt_update(&opt, mi);
 		if (mm_verbose >= 3) mm_idx_stat(mi);
 		mi->idx_id=idx_id;
@@ -359,16 +360,16 @@ int init_minimap2(int argc, char *argv[])
 
 	if(opt.multi_prefix!=NULL) merge(&opt,&ipt,idx_id,(const char**)&argv[optind + 1], argc, argv, rg);
 	if (fflush(stdout) == EOF) {
-		fprintf(stderr, "[ERROR] failed to write the results\n");
+        ERROR("%s", "failed to write the results");
 		exit(EXIT_FAILURE);
 	}
 
 	if (mm_verbose >= 3) {
-		fprintf(stderr, "[M::%s] Version: %s\n", __func__, MM_VERSION);
-		fprintf(stderr, "[M::%s] CMD:", __func__);
+        INFO("[M::%s] Version: %s\n", __func__, MM_VERSION);
+        INFO("[M::%s] CMD:", __func__);
 		for (i = 0; i < argc; ++i)
-			fprintf(stderr, " %s", argv[i]);
-		fprintf(stderr, "\n[M::%s] Real time: %.3f sec; CPU: %.3f sec\n", __func__, realtime() - mm_realtime0, cputime());
+            INFO(" %s", argv[i]);
+        INFO("[M::%s] Real time: %.3f sec; CPU: %.3f sec\n", __func__, realtime() - mm_realtime0, cputime());
 	}
 	return 0;
 }
