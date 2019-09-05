@@ -458,7 +458,7 @@ void mm_set_mapq(void *km, int n_regs, mm_reg1_t *regs, int min_chain_sc, int ma
 			if (r->p && r->p->dp_max2 > 0 && r->p->dp_max > 0) {
 				float identity = (float)r->mlen / r->blen;
 				float x = (float)r->p->dp_max2 * subsc / r->p->dp_max / r->score0;
-				mapq = (int)(identity * pen_cm * q_coef * (1.0f - x * x) * logf((float)r->p->dp_max / match_sc));
+//				mapq = (int)(identity * pen_cm * q_coef * (1.0f - x * x) * logf((float)r->p->dp_max / match_sc));
 				if (!is_sr) {
 					int mapq_alt = (int)(6.02f * identity * identity * (r->p->dp_max - r->p->dp_max2) / match_sc + .499f); // BWA-MEM like mapQ, mostly for short reads
 					mapq = mapq < mapq_alt? mapq : mapq_alt; // in case the long-read heuristic fails
@@ -467,12 +467,12 @@ void mm_set_mapq(void *km, int n_regs, mm_reg1_t *regs, int min_chain_sc, int ma
 				float x = (float)subsc / r->score0;
 				if (r->p) {
 					float identity = (float)r->mlen / r->blen;
-					mapq = (int)(identity * pen_cm * q_coef * (1.0f - x) * logf((float)r->p->dp_max / match_sc));
+//					mapq = (int)(identity * pen_cm * q_coef * (1.0f - x) * logf((float)r->p->dp_max / match_sc));
 				} else {
-					mapq = (int)(pen_cm * q_coef * (1.0f - x) * logf(r->score));
+//					mapq = (int)(pen_cm * q_coef * (1.0f - x) * logf(r->score));
 				}
 			}
-			mapq -= (int)(4.343f * logf(r->n_sub + 1) + .499f);
+//			mapq -= (int)(4.343f * logf(r->n_sub + 1) + .499f);
 			mapq = mapq > 0? mapq : 0;
 			r->mapq = mapq < 60? mapq : 60;
 			if (r->p && r->p->dp_max > r->p->dp_max2 && r->mapq == 0) r->mapq = 1;

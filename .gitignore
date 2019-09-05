@@ -6,3 +6,9 @@
 *.dSYM
 minimap2
 mappy.c
+build
+build-android
+
+# IDEs
+######################
+.idea/
