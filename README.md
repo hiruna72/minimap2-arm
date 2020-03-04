@@ -82,6 +82,12 @@ to disable SSE4 code, which will make minimap2 slightly slower.
 Minimap2 also works with ARM CPUs supporting the NEON instruction sets. To
 compile for 32 bit ARM architectures (such as ARMv7), use `make arm_neon=1`. To compile for for 64 bit ARM architectures (such as ARMv8), use `make arm_neon=1 aarch64=1`.
 
+#### CMake build
+
+set `toolchain_file` path in the cmakerun.sh for android cross compiling
+
+run cmakerun.sh
+
 ### <a name="general"></a>General usage
 
 Without any options, minimap2 takes a reference database and a query sequence
