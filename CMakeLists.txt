@@ -22,25 +22,28 @@ project(MINIMAP2 LANGUAGES CXX C)
 message(STATUS "Configure Minimap2")
 
 # Set project name
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -fPIC -Wall -O2 -Wc++-compat -DKSW_SSE2_ONLY -D__SSE2__" )
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -Wall -O2 -std=c++11 -DHAVE_KALLOC -DKSW_SSE2_ONLY -D__SSE2__")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -fPIC -Wall -O2 -Wc++-compat -D_FILE_OFFSET_BITS=64 -fsigned-char" )
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -Wall -O2 -std=c++11 -D_FILE_OFFSET_BITS=64 -fsigned-char -DHAVE_KALLOC")
+
 
 include_directories(${PROJECT_SOURCE_DIR})
-include_directories(${PROJECT_SOURCE_DIR}/sse2neon)
+
+IF (${ANDROID_ARM_NEON})
+	message(STATUS "NEON build...")
+	include_directories(${PROJECT_SOURCE_DIR}/sse2neon)
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DKSW_SSE2_ONLY -D__SSE2__" ) 
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DKSW_SSE2_ONLY -D__SSE2__")
+ENDIF()
+
 
 set (align align.c)
 set (bseq bseq.c)
 set (chain chain.c)
 set (esterr esterr.c)
-# set (example example.c)
 set (format format.c)
 set (hit hit.c)
 set (index index.c)
 set (kalloc kalloc.c)
-set (ksw2_extd2_sse ksw2_extd2_sse.c)
-set (ksw2_exts2_sse ksw2_exts2_sse.c)
-set (ksw2_extz2_sse ksw2_extz2_sse.c)
-set (ksw2_ll_sse ksw2_ll_sse.c)
 set (kthread kthread.c)
 set (main main.c)
 set (map map.c)
@@ -51,10 +54,11 @@ set (sdust sdust.c)
 set (sketch sketch.c)
 set (splitidx splitidx.c)
 
-# set (ksw2_ll_sse ksw2_ll_sse.c)
-# set (ksw2_extz2_neon ksw2_extz2_sse.c)
-# set (ksw2_extd2_neon ksw2_extd2_sse.c)
-# set (ksw2_exts2_neon ksw2_exts2_sse.c)
+set (ksw2_extd2_sse ksw2_extd2_sse.c)
+set (ksw2_exts2_sse ksw2_exts2_sse.c)
+set (ksw2_extz2_sse ksw2_extz2_sse.c)
+set (ksw2_ll_sse ksw2_ll_sse.c)
+
 
 # Build a shared lib
 add_library(minimapshared SHARED ${main} ${align} ${bseq} ${chain} ${esterr} ${format} ${hit} ${index} ${kalloc} ${ksw2_extd2_sse}
@@ -66,3 +70,10 @@ IF (${DEPLOY_PLATFORM} STREQUAL "x86")
 ELSE()
     target_link_libraries(minimapshared -lz -ldl -lm)
 ENDIF()
+
+#  compile init_minimap2_example and link to shared lib
+# Create the executable
+add_executable(minimap2_example examples/init_minimap2_example.c)
+
+# Link the required libraries
+target_link_libraries(minimap2_example minimapshared)
